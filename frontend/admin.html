@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin - Client Verification</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+</head>
+<body class="p-4">
+  <h2>Client List</h2>
+  <div id="clientList" class="mb-5"></div>
+
+  <div id="clientDetails" style="display: none;">
+    <h3>Client Details</h3>
+    <div id="details"></div>
+
+    <h4>Verify Fields</h4>
+    <div id="fieldVerification" class="mb-4"></div>
+
+    <h4>Verify Documents</h4>
+    <div id="documents"></div>
+
+    <h5 class="mt-4">📧 Mail Preview:</h5>
+    <pre id="mailPreview" class="bg-light p-3 border"></pre>
+
+    <button id="submitBtn" class="btn btn-success mt-3">Submit Rejection Summary</button>
+  </div>
+<script>
+  const API_BASE = 'http://localhost:5000/api/client';
+
+  const rejectedFields = new Set();
+  const rejectedDocs = new Set();
+  let selectedClientId = null;
+
+  async function loadClients() {
+    const res = await fetch(`${API_BASE}/getall`);
+    const clients = await res.json();
+    const container = document.getElementById("clientList");
+    container.innerHTML = "";
+
+    clients.forEach(client => {
+      const div = document.createElement("div");
+      div.className = "border p-3 mb-2";
+      div.innerHTML = `
+        <strong>${client.name || "No Name"}</strong><br/>
+        Email: ${client.email || "-"}<br/>
+        Mobile: ${client.mobile || "-"}<br/>
+        <button class="btn btn-sm btn-primary mt-2" onclick="showDetails('${client._id}')">More Info</button>
+      `;
+      container.appendChild(div);
+    });
+  }
+
+  async function showDetails(id) {
+    selectedClientId = id;
+    rejectedFields.clear();
+    rejectedDocs.clear();
+
+    const res = await fetch(`${API_BASE}/get/${id}`);
+    const client = await res.json();
+
+    document.getElementById("clientDetails").style.display = "block";
+
+    const fieldList = ['locationOfInvestor', 'residenceAddress', 'occupationOrBusiness', 'originOfFunds', 'sourceOfWealthOrIncome'];
+    const fieldDiv = document.getElementById("fieldVerification");
+    fieldDiv.innerHTML = "";
+
+    fieldList.forEach(field => {
+      const fieldData = client[field];
+      const value = fieldData?.value || "";
+      const inputId = `field-${field}`;
+      const selectId = `select-${field}`;
+      const row = document.createElement("div");
+      row.className = "mb-3";
+      row.innerHTML = `
+        <label class="form-label">${field}:</label>
+        <input class="form-control mb-1" id="${inputId}" value="${value}" readonly />
+        <select class="form-select" id="${selectId}" onchange="handleFieldChange('${field}')">
+          <option value="accepted">Accepted</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      `;
+      fieldDiv.appendChild(row);
+    });
+
+    const docDiv = document.getElementById("documents");
+    docDiv.innerHTML = "";
+    client.documents.forEach((doc, index) => {
+      const selectId = `select-doc-${index}`;
+      const docRow = document.createElement("div");
+      docRow.className = "mb-3";
+      docRow.innerHTML = `
+        <div>
+          📄 <strong>${doc.name}:</strong> 
+          ${doc.path ? `<a href="/${doc.path.replace(/\\/g, '/')}" target="_blank">View</a>` : 'Not Uploaded'}
+        </div>
+        <select class="form-select mt-1" id="${selectId}" data-docname="${doc.name}" onchange="handleDocChange('${doc.name}', this)">
+          <option value="accepted">Accepted</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      `;
+      docDiv.appendChild(docRow);
+    });
+
+    generateMailPreview();
+  }
+
+  function handleFieldChange(field) {
+    const selectEl = document.getElementById(`select-${field}`);
+    if (selectEl.value === 'rejected') {
+      rejectedFields.add(field);
+    } else {
+      rejectedFields.delete(field);
+    }
+    generateMailPreview();
+  }
+
+  function handleDocChange(docName, element) {
+    if (element.value === 'rejected') {
+      rejectedDocs.add(docName);
+    } else {
+      rejectedDocs.delete(docName);
+    }
+    generateMailPreview();
+  }
+
+  function generateMailPreview() {
+    const rejectedFieldsPreview = Array.from(rejectedFields).map(f => `- ${f}`).join('\n') || 'None';
+    const rejectedDocsPreview = Array.from(rejectedDocs).map(d => `- ${d}`).join('\n') || 'None';
+
+    const mail = `
+Subject: Re-submission Required
+
+Dear Client,
+
+The following fields were rejected:
+${rejectedFieldsPreview}
+
+The following documents were rejected:
+${rejectedDocsPreview}
+
+Please complete your submission at:
+http://localhost:5000/upload/${selectedClientId}
+
+Regards,
+Admin Team`.trim();
+
+    document.getElementById("mailPreview").textContent = mail;
+  }
+
+  document.getElementById("submitBtn").addEventListener("click", async () => {
+    if (!selectedClientId) return alert("No client selected");
+
+    const acceptedFields = [];
+    const acceptedDocs = [];
+
+    const fieldList = ['locationOfInvestor', 'residenceAddress', 'occupationOrBusiness', 'originOfFunds', 'sourceOfWealthOrIncome'];
+    fieldList.forEach(field => {
+      const selectEl = document.getElementById(`select-${field}`);
+      if (selectEl?.value === 'accepted') acceptedFields.push(field);
+    });
+
+    const docSelects = document.querySelectorAll('[id^="select-doc-"]');
+    docSelects.forEach(select => {
+      const docName = select.getAttribute('data-docname');
+      if (select.value === 'accepted') acceptedDocs.push(docName);
+    });
+
+    generateMailPreview();
+
+    const response = await fetch(`${API_BASE}/resend`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        clientId: selectedClientId,
+        rejected: {
+          rejectedFields: Array.from(rejectedFields),
+          rejectedDocs: Array.from(rejectedDocs)
+        },
+        accepted: {
+          acceptedFields,
+          acceptedDocs
+        }
+      })
+    });
+
+    const result = await response.json();
+    alert(result.message || "Mail sent");
+  });
+
+  loadClients();
+</script>
+  
+</body>
+</html>

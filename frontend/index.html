@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Add Client - Admin Form</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        display: flex;
+        padding: 20px;
+        gap: 30px;
+      }
+      form {
+        flex: 1;
+      }
+      .preview {
+        flex: 1;
+        border-left: 2px solid #ccc;
+        padding-left: 20px;
+      }
+      label {
+        display: block;
+        margin-top: 10px;
+      }
+      input,
+      textarea {
+        width: 100%;
+        padding: 5px;
+        margin-top: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <form id="clientForm" onsubmit="submitForm(event)">
+      <h2>Add Client</h2>
+
+      <label>Name:</label>
+      <input
+        type="text"
+        id="name"
+        name="name"
+        oninput="updatePreview()"
+        required
+      />
+
+      <label>Email ID:</label>
+      <input
+        type="email"
+        id="email"
+        name="email"
+        oninput="updatePreview()"
+        required
+      />
+
+      <label>Mobile:</label>
+      <input
+        type="text"
+        id="mobile"
+        name="mobile"
+        oninput="updatePreview()"
+        required
+      />
+
+      <label>Documents Required:</label>
+      <input
+        type="checkbox"
+        name="documents"
+        value="Passport Copy"
+        onchange="updatePreview()"
+      />
+      Passport Copy<br />
+      <input
+        type="checkbox"
+        name="documents"
+        value="Address Proof"
+        onchange="updatePreview()"
+      />
+      Address Proof<br />
+      <input
+        type="checkbox"
+        name="documents"
+        value="PAN Card"
+        onchange="updatePreview()"
+      />
+      PAN Card<br />
+      <input
+        type="checkbox"
+        name="documents"
+        value="Other (Notarized)"
+        onchange="updatePreview()"
+      />
+      Other (Notarized)<br />
+
+      <br />
+      <input type="submit" value="Submit" />
+    </form>
+
+    <div class="preview">
+      <h2>Email Preview</h2>
+      <pre id="mailPreview" style="white-space: pre-wrap"></pre>
+    </div>
+
+    <script>
+      async function submitForm(event) {
+        event.preventDefault();
+
+        const name = document.getElementById("name").value;
+        const email = document.getElementById("email").value;
+        const mobile = document.getElementById("mobile").value;
+
+        const selectedDocs = Array.from(
+          document.querySelectorAll('input[name="documents"]:checked')
+        ).map((cb) => cb.value);
+
+        const payload = {
+          name,
+          email,
+          mobile,
+          documents: selectedDocs
+        };
+
+        try {
+          const response = await fetch("http://localhost:5000/api/client/add", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+          });
+
+          const data = await response.json();
+
+          if (response.status === 201) {
+            alert("Client added successfully!");
+            document.getElementById("clientForm").reset();
+            updatePreview();
+          } else {
+            alert(`Error: ${data.message}`);
+          }
+        } catch (err) {
+          console.error("Request failed", err);
+          alert("Error: Failed to add client.");
+        }
+      }
+
+      function updatePreview() {
+        const name = document.getElementById("name").value;
+
+        const docs = Array.from(
+          document.querySelectorAll('input[name="documents"]:checked')
+        )
+          .map((cb) => `- ${cb.value}`)
+          .join("\n");
+
+        const preview = `
+Dear ${name || "[Name]"},
+
+Many thanks for your mail.
+
+Please find below checklist mail which is applicable to NRI & Foreign Nationals as Indian Resident is not allowed to invest into Gift fund.
+
+Details required:
+
+Name: 
+Location of Investor: 
+Residence address: 
+Occupation/Business: 
+Origin of funds: 
+Source of wealth or income:
+Email id:
+
+Documents required:
+Please provide Notarized copies of the documents below.
+Notarization can be done by lawyer, bank official, notary, actuary, accountant, or director.
+
+${docs || "- [Select documents]"}
+
+Kind regards,
+Triosphere Team
+        `;
+
+        document.getElementById("mailPreview").textContent = preview;
+      }
+    </script>
+  </body>
+</html>

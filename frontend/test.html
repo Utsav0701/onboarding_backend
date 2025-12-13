@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Client Info & Update</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+    th, td {
+      padding: 10px;
+      text-align: left;
+    }
+    th {
+      background-color: #f4f4f4;
+    }
+    td {
+      border-bottom: 1px solid #ddd;
+    }
+    input[type="text"] {
+      width: 100%;
+      padding: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Client Information</h1>
+  <form id="client-update-form" enctype="multipart/form-data">
+    <div id="client-fields"></div>
+
+    <h2>Upload Documents</h2>
+    <table id="document-table" border="1">
+      <thead>
+        <tr>
+          <th>Document Name</th>
+          <th>Select File</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="document-rows"></tbody>
+    </table>
+    <br/>
+    <button type="submit">Update Client</button>
+  </form>
+
+  <script>
+    const clientId = window.location.pathname.split('/').pop();
+
+    const fieldLabels = {
+      name: "Name",
+      email: "Email",
+      mobile: "Mobile",
+      locationOfInvestor: "Location of Investor",
+      residenceAddress: "Residence Address",
+      occupationOrBusiness: "Occupation or Business",
+      originOfFunds: "Origin of Funds",
+      sourceOfWealthOrIncome: "Source of Wealth or Income",
+    };
+
+    fetch(`http://localhost:5000/api/client/getdetails/${clientId}`)
+      .then(res => res.json())
+      .then(data => {
+        const clientFields = document.getElementById('client-fields');
+        // for (const key in fieldLabels) {
+        //   const label = document.createElement('label');
+        //   label.textContent = fieldLabels[key];
+
+        //   const input = document.createElement('input');
+        //   input.type = 'text';
+        //   input.name = key;
+        //   input.value = data[key] || '';
+
+        //   clientFields.appendChild(label);
+        //   clientFields.appendChild(document.createElement('br'));
+        //   clientFields.appendChild(input);
+        //   clientFields.appendChild(document.createElement('br'));
+        // }
+
+        for (const key in fieldLabels) {
+  if (data[key].isVerified === null) {
+    const label = document.createElement('label');
+    label.textContent = fieldLabels[key];
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.name = key;
+    input.value = '';
+
+    clientFields.appendChild(label);
+    clientFields.appendChild(document.createElement('br'));
+    clientFields.appendChild(input);
+    clientFields.appendChild(document.createElement('br'));
+  }
+}
+
+        const docRows = document.getElementById('document-rows');
+        docRows.innerHTML = '';
+
+       data.documents.forEach((doc, index) => {
+  if (!doc.path || doc.verified === false || doc.verified === null) {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${doc.name}</td>
+      <td><input type="file" name="${doc.name}" /></td>
+      <td id="status-${index}">Re-upload Required ⛔</td>
+    `;
+    docRows.appendChild(row);
+  }
+})
+      })
+
+      .catch(err => {
+        document.getElementById('client-fields').textContent = 'Failed to load client data.';
+        console.error(err);
+      });
+
+    document.getElementById('client-update-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const formData = new FormData();
+
+      // Add all text fields
+      Object.keys(fieldLabels).forEach(key => {
+        const value = form.elements[key]?.value;
+        if (value) {
+          formData.append(key, value);
+        }
+      });
+
+      // Add all uploaded documents
+      const fileInputs = form.querySelectorAll('input[type="file"]');
+      fileInputs.forEach(input => {
+        if (input.files.length > 0) {
+          formData.append(input.name, input.files[0]);
+        }
+      });
+
+      try {
+        const res = await fetch(`http://localhost:5000/api/client/update/${clientId}`, {
+          method: 'PUT',
+          body: formData
+        });
+
+        const result = await res.json();
+        if (res.ok) {
+          alert('Client updated successfully!');
+          window.location.reload();
+        } else {
+          alert('Error: ' + result.message);
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Something went wrong while updating.');
+      }
+    });
+  </script>
+</body>
+</html>
