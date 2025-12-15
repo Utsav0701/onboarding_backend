@@ -89,7 +89,7 @@ export const addClient = async (req, res) => {
     console.error("Add client error:", error);
     res.status(500).json({ message: "Error adding client" });
   }
-};
+};  
 
 
 // ✅ 2. Get All Clients
