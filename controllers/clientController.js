@@ -89,7 +89,7 @@ export const addClient = async (req, res) => {
     console.error("Add client error:", error);
     res.status(500).json({ message: "Error adding client" });
   }
-};  
+};
 
 
 // ✅ 2. Get All Clients
@@ -329,9 +329,12 @@ export const resendUploadLink = async (req, res) => {
       `);
 
       html = htmlSections.join("\n");
-
+        console.log("inside if rejected :",html );
+        
       await sendMail(client.email, "Re-Submission Required", html);
     } else {
+      console.log("insdie else Confirm");
+      
       html = `
         <h2>Hello ${client.name},</h2>
         <p>Congratulations! Your account verification has been successfully completed.</p>
